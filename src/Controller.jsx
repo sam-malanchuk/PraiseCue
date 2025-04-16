@@ -1,7 +1,14 @@
-import React, { useContext, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+// src/Controller.jsx
+import React, { useState, useContext } from 'react';
 import { DisplayContext } from './DisplayContext';
+import { getDB, saveDB } from './db';
 import { sampleTexts } from './sampleData';
+import { v4 as uuidv4 } from 'uuid';
+import { useNavigate } from 'react-router-dom';
+import { io } from 'socket.io-client';
+
+// Create a single socket instance.
+const socket = io('http://localhost:3001'); // Adjust as needed.
 
 function Controller() {
   const { displays, setDisplays } = useContext(DisplayContext);
@@ -9,9 +16,27 @@ function Controller() {
   const navigate = useNavigate();
 
   const handleAddDisplay = () => {
-    const newId = displays.length + 1;
+    const newId = uuidv4(); // Generate a unique ID.
     const newDisplay = { id: newId, text: selectedText };
+
+    // Insert into local SQLite DB.
+    const db = getDB();
+    if (db) {
+      try {
+        db.run('INSERT INTO displays (id, text) VALUES (?, ?)', [newId, selectedText]);
+        saveDB();
+      } catch (error) {
+        console.error('Error inserting new display:', error);
+      }
+    }
+
+    // Update React state.
     setDisplays([...displays, newDisplay]);
+
+    // Emit the event to notify other clients.
+    socket.emit('newDisplay', newDisplay);
+
+    // Navigate to the new display page.
     navigate(`/display/${newId}`);
   };
 
@@ -23,7 +48,7 @@ function Controller() {
         <select
           id="text-select"
           value={selectedText}
-          onChange={(e) => setSelectedText(e.target.value)}
+          onChange={e => setSelectedText(e.target.value)}
           style={{ marginLeft: '10px' }}
         >
           {sampleTexts.map((text, index) => (
@@ -43,9 +68,9 @@ function Controller() {
           <p>No displays created yet.</p>
         ) : (
           <ul>
-            {displays.map((display) => (
+            {displays.map(display => (
               <li key={display.id}>
-                <Link to={`/display/${display.id}`}>Display {display.id}</Link> - {display.text.slice(0, 40)}...
+                Display {display.id}: {display.text.slice(0, 40)}...
               </li>
             ))}
           </ul>

@@ -11,7 +11,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Controller />} />
           <Route path="/display/:id" element={<Display />} />
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </DisplayProvider>
