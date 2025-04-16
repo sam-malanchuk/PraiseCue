@@ -1,3 +1,4 @@
+// src/Display.jsx
 import React, { useContext } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { DisplayContext } from './DisplayContext';
@@ -5,7 +6,7 @@ import { DisplayContext } from './DisplayContext';
 function Display() {
   const { id } = useParams();
   const { displays } = useContext(DisplayContext);
-  const displayData = displays.find((d) => d.id === parseInt(id, 10));
+  const displayData = displays.find(d => d.id === id);
 
   return (
     <div style={{ padding: '20px' }}>
