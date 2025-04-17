@@ -46,3 +46,16 @@ npm run dev
 cd client
 PORT=80 HOST=0.0.0.0 npm start
 ```
+
+## 📦 Requirements
+- Node.js (v18+ recommended)
+- setcap (to allow React dev server to bind to port 80 without sudo)
+- Local network connection
+
+## 🛠 Project Structure
+``` bash
+praisecue/
+├── client/   # React frontend (Controller + Display)
+├── server/   # Node backend + SQLite + API
+├── README.md
+```
