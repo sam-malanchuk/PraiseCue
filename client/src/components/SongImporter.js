@@ -1,92 +1,88 @@
 import React, { useState } from 'react';
+import { Box, Button, Text, Input, Textarea, Heading, VStack } from '@chakra-ui/react';
+import { useAppContext } from '../context/AppContext';
 
 function parseSongMarkdown(md) {
   const lines = md.trim().split('\n');
   let title = '';
   const stanzas = [];
-  let currentStanza = null;
+  let current = null;
 
   for (let line of lines) {
     line = line.trim();
-
     if (line.startsWith('# ')) {
-      title = line.replace('# ', '').trim();
+      title = line.slice(2).trim();
     } else if (line.startsWith('## ')) {
-      if (currentStanza) stanzas.push(currentStanza);
-      currentStanza = { title: line.replace('## ', '').trim(), lines: [] };
-    } else if (line) {
-      currentStanza?.lines.push(line);
+      if (current) stanzas.push(current);
+      current = { title: line.slice(3).trim(), lines: [] };
+    } else if (current) {
+      current.lines.push(line);
     }
   }
-  if (currentStanza) stanzas.push(currentStanza);
-
+  if (current) stanzas.push(current);
   return { title, stanzas };
 }
 
-function SongImporter({ onImport }) {
-  const [text, setText] = useState('');
+export default function SongImporter() {
+  const { activeDisplayId } = useAppContext();
+  const [md, setMd] = useState('');
   const [preview, setPreview] = useState(null);
 
-  const handleParse = async () => {
-    const parsed = parseSongMarkdown(text);
+  const handleParse = () => {
+    const parsed = parseSongMarkdown(md);
     setPreview(parsed);
+  };
 
-    // 💥 Add this validation check here
-    if (!parsed.title || !parsed.stanzas?.length) {
-      alert('Invalid song format: title and stanzas are required.');
+  const handleSave = async () => {
+    if (!preview?.title || preview.stanzas.length === 0) {
+      alert('Song must have a title and at least one stanza');
       return;
     }
-
     try {
-      const res = await fetch('/api/songs', {
+      await fetch('/api/songs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsed)
+        body: JSON.stringify({
+          title: preview.title,
+          tags: [],
+          content: preview.stanzas,
+        }),
       });
-
-      const data = await res.json();
-      if (res.ok) {
-        alert(`Saved song with ID ${data.id}`);
-        onImport?.(parsed); // optional callback for refreshing UI
-      } else {
-        console.error(data.error);
-        alert(`Failed to save: ${data.error}`);
-      }
+      setMd('');
+      setPreview(null);
+      alert('Song saved successfully');
     } catch (err) {
       console.error(err);
-      alert('Error saving song.');
+      alert('Error saving song');
     }
   };
 
-
   return (
-    <div style={{ marginTop: 20 }}>
-      <h4>Paste Song Markdown</h4>
-      <textarea
-        rows={10}
-        style={{ width: '100%' }}
-        placeholder="# Title\n## Verse 1\nLine 1\nLine 2"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
+    <Box borderWidth="1px" borderRadius="md" p={4}>
+      <Heading size="sm" mb={2}>Import Song (Markdown)</Heading>
+      <Textarea
+        value={md}
+        onChange={(e) => setMd(e.target.value)}
+        placeholder="# Song Title\n## Verse 1\nLine 1\nLine 2"
+        rows={6}
+        mb={2}
       />
-
-      <button onClick={handleParse} style={{ marginTop: 10 }}>
-        Preview
-      </button>
+      <Button size="sm" onClick={handleParse} mb={2}>Preview</Button>
 
       {preview && (
-        <div style={{ marginTop: 20 }}>
-          <strong>Title:</strong> {preview.title}
-          {preview.stanzas.map((s, idx) => (
-            <div key={idx} style={{ marginTop: 10 }}>
-              <strong>{s.title}</strong>
-              <pre>{s.lines.join('\n')}</pre>
-            </div>
-          ))}
-        </div>
+        <Box mb={2} borderWidth="1px" borderRadius="md" p={2}>
+          <Text><strong>Title:</strong> {preview.title}</Text>
+          <VStack spacing={2} align="stretch" mt={2}>
+            {preview.stanzas.map((s, i) => (
+              <Box key={i}>
+                <Text><strong>{s.title}</strong></Text>
+                <Box as="pre" whiteSpace="pre-wrap">{s.lines.join('\n')}</Box>
+              </Box>
+            ))}
+          </VStack>
+          <Button size="sm" colorScheme="teal" onClick={handleSave} mt={2}>Save to Library</Button>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 }
-
-export default SongImporter;

@@ -8,31 +8,40 @@ router.post('/:displayId', (req, res) => {
   const { items } = req.body;
 
   if (!Array.isArray(items)) {
-    return res.status(400).json({ error: 'Invalid format' });
+    return res.status(400).json({ error: 'Invalid format: items should be an array' });
   }
 
   db.serialize(() => {
-    db.run('DELETE FROM schedules WHERE display_id = ?', [displayId]);
-
-    const stmt = db.prepare(
-      'INSERT INTO schedules (display_id, type, item_id, position) VALUES (?, ?, ?, ?)'
-    );
-
-    items.forEach((item, idx) => {
-      stmt.run(displayId, item.type, item.item_id, idx);
+    db.run('DELETE FROM schedules WHERE display_id = ?', [displayId], (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      const stmt = db.prepare(`
+        INSERT INTO schedules
+          (display_id, type, item_id, stanza_or_verse, position)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      items.forEach((item, idx) => {
+        stmt.run(
+          displayId,
+          item.type,
+          item.item_id,
+          item.stanza_or_verse || null,
+          idx
+        );
+      });
+      stmt.finalize((err2) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        res.json({ success: true });
+      });
     });
-
-    stmt.finalize();
-    res.json({ success: true });
   });
 });
 
-// Load schedule
+// Get schedule for display
 router.get('/:displayId', (req, res) => {
   const { displayId } = req.params;
-
   db.all(
-    'SELECT * FROM schedules WHERE display_id = ? ORDER BY position ASC',
+    `SELECT id, display_id, type, item_id, stanza_or_verse, position
+     FROM schedules WHERE display_id = ? ORDER BY position ASC`,
     [displayId],
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });

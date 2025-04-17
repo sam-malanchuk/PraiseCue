@@ -1,155 +1,106 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Button,
-  Flex,
-  Text,
-  VStack,
-  Heading,
-  useColorModeValue
-} from '@chakra-ui/react';
+import React, { useEffect, useState } from 'react';
+import { Box, Flex, VStack, Heading, Text, Select } from '@chakra-ui/react';
+import { useAppContext } from '../context/AppContext';
 
-const dummyBooks = {
-  'John': {
-    3: ['16', '17', '18'],
-    4: ['1', '2']
-  },
-  'Romans': {
-    8: ['28', '29'],
-    10: ['9', '10', '11']
-  }
-};
-
-function TabBible({ socket, activeContent }) {
-  const [selectedVersion, setSelectedVersion] = useState('KJV');
+function TabBible() {
+  const { socket, activeContent, activeDisplayId } = useAppContext();
+  const [books, setBooks] = useState([]);
+  const [chapters, setChapters] = useState([]);
+  const [verses, setVerses] = useState([]);
   const [selectedBook, setSelectedBook] = useState('');
   const [selectedChapter, setSelectedChapter] = useState('');
-  const [selectedVerse, setSelectedVerse] = useState('');
+  const [selectedVerse, setSelectedVerse] = useState(null);
 
-  const activeRef = `${selectedBook} ${selectedChapter}:${selectedVerse}`;
-  const isActive = activeContent?.contentType === 'bible' && activeContent?.stanzaOrVerse === activeRef;
+  // Load list of books
+  useEffect(() => {
+    fetch('/api/bible/books')
+      .then(res => res.json())
+      .then(setBooks)
+      .catch(console.error);
+  }, []);
 
-  const handleClickVerse = () => {
-    if (isActive) {
+  // Load chapters when book changes
+  useEffect(() => {
+    if (!selectedBook) return;
+    fetch(`/api/bible/${selectedBook}/chapters`)
+      .then(res => res.json())
+      .then(data => {
+        setChapters(data);
+        setSelectedChapter('');
+        setVerses([]);
+      })
+      .catch(console.error);
+  }, [selectedBook]);
+
+  // Load verses when chapter changes
+  useEffect(() => {
+    if (!selectedBook || !selectedChapter) return;
+    fetch(`/api/bible/${selectedBook}/${selectedChapter}`)
+      .then(res => res.json())
+      .then(data => {
+        setVerses(data);
+        setSelectedVerse(null);
+      })
+      .catch(console.error);
+  }, [selectedChapter]);
+
+  const handleShowVerse = (verseObj) => {
+    const reference = `${selectedBook} ${selectedChapter}:${verseObj.verse}`;
+    if (selectedVerse === verseObj.verse) {
       socket.emit('clearContent');
-      return;
-    }
-
-    socket.emit('showContent', {
-      contentType: 'bible',
-      contentId: 1,
-      stanzaOrVerse: activeRef
-    });
-  };
-
-  const reset = (level) => {
-    if (level === 'book') {
-      setSelectedBook('');
-      setSelectedChapter('');
-      setSelectedVerse('');
-    } else if (level === 'chapter') {
-      setSelectedChapter('');
-      setSelectedVerse('');
-    } else if (level === 'verse') {
-      setSelectedVerse('');
+      setSelectedVerse(null);
+    } else {
+      setSelectedVerse(verseObj.verse);
+      socket.emit('showContent', {
+        contentType: 'bible',
+        contentId: verseObj.id,
+        stanzaOrVerse: reference,
+        targetDisplays: [activeDisplayId]
+      });
     }
   };
 
   return (
-    <Box mt={4}>
-      <Heading size="sm" mb={2}>Bible Version</Heading>
-      <Flex gap={2} mb={4}>
-        {['KJV', 'NIV'].map((v) => (
-          <Button
-            key={v}
-            variant={selectedVersion === v ? 'solid' : 'outline'}
-            colorScheme="blue"
-            size="sm"
-            onClick={() => setSelectedVersion(v)}
+    <Box>
+      <Heading size="md" mb={4}>Bible</Heading>
+      <Flex mb={4} gap={2}>
+        <Select
+          placeholder="Book"
+          value={selectedBook}
+          onChange={(e) => setSelectedBook(e.target.value)}
+        >
+          {books.map((book) => (
+            <option key={book} value={book}>{book}</option>
+          ))}
+        </Select>
+        <Select
+          placeholder="Chapter"
+          value={selectedChapter}
+          onChange={(e) => setSelectedChapter(e.target.value)}
+        >
+          {chapters.map((ch) => (
+            <option key={ch} value={ch}>{ch}</option>
+          ))}
+        </Select>
+      </Flex>
+
+      <VStack spacing={2} align="stretch">
+        {verses.map((v) => (
+          <Box
+            key={v.verse}
+            p={3}
+            bg={selectedVerse === v.verse ? 'teal.100' : 'gray.50'}
+            borderRadius="md"
+            cursor="pointer"
+            onClick={() => handleShowVerse(v)}
           >
-            {v}
-          </Button>
+            <Text mb={1}>{v.text}</Text>
+            <Text fontSize="sm" color="gray.500">
+              {`${selectedBook} ${selectedChapter}:${v.verse}`}
+            </Text>
+          </Box>
         ))}
-      </Flex>
-
-      <Flex gap={6} align="flex-start">
-        {/* Book list */}
-        <Box w="30%" maxH="45vh" overflowY="auto">
-          <Heading size="sm" mb={2}>Books</Heading>
-          <VStack align="stretch" spacing={1}>
-            {Object.keys(dummyBooks).map((book) => (
-              <Button
-                key={book}
-                size="sm"
-                variant={selectedBook === book ? 'solid' : 'outline'}
-                colorScheme="teal"
-                onClick={() => {
-                  setSelectedBook(book);
-                  reset('chapter');
-                }}
-              >
-                {book}
-              </Button>
-            ))}
-          </VStack>
-        </Box>
-
-        {/* Chapter list */}
-        {selectedBook && (
-          <Box w="30%" maxH="45vh" overflowY="auto">
-            <Heading size="sm" mb={2}>Chapters</Heading>
-            <VStack align="stretch" spacing={1}>
-              {Object.keys(dummyBooks[selectedBook]).map((chapter) => (
-                <Button
-                  key={chapter}
-                  size="sm"
-                  variant={selectedChapter === chapter ? 'solid' : 'outline'}
-                  colorScheme="purple"
-                  onClick={() => {
-                    setSelectedChapter(chapter);
-                    reset('verse');
-                  }}
-                >
-                  {chapter}
-                </Button>
-              ))}
-            </VStack>
-          </Box>
-        )}
-
-        {/* Verse list */}
-        {selectedChapter && (
-          <Box w="30%" maxH="45vh" overflowY="auto">
-            <Heading size="sm" mb={2}>Verses</Heading>
-            <VStack align="stretch" spacing={1}>
-              {dummyBooks[selectedBook][selectedChapter].map((verse) => {
-                const ref = `${selectedBook} ${selectedChapter}:${verse}`;
-                const isCurrent = activeContent?.stanzaOrVerse === ref;
-                return (
-                  <Button
-                    key={verse}
-                    size="sm"
-                    variant={selectedVerse === verse ? 'solid' : 'outline'}
-                    colorScheme={isCurrent ? 'red' : 'blue'}
-                    onClick={() => {
-                      setSelectedVerse(verse);
-                      handleClickVerse();
-                    }}
-                  >
-                    {verse}
-                  </Button>
-                );
-              })}
-            </VStack>
-          </Box>
-        )}
-      </Flex>
-
-      {selectedVerse && (
-        <Text mt={4} fontSize="sm">
-          {isActive ? 'Verse shown — click again to clear' : 'Click verse to show'}
-        </Text>
-      )}
+      </VStack>
     </Box>
   );
 }

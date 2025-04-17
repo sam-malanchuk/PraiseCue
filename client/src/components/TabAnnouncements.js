@@ -1,67 +1,63 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Box,
-  Button,
-  Text,
-  VStack,
-  Heading
-} from '@chakra-ui/react';
+import { Box, VStack, Text, Heading } from '@chakra-ui/react';
+import { useAppContext } from '../context/AppContext';
 
-function TabAnnouncements({ socket, activeContent }) {
+function TabAnnouncements() {
+  const { socket, activeContent, activeDisplayId } = useAppContext();
   const [announcements, setAnnouncements] = useState([]);
 
+  // Fetch announcements on mount
   useEffect(() => {
     fetch('/api/announcements')
-      .then((res) => res.json())
+      .then(res => res.json())
       .then(setAnnouncements)
-      .catch(() => setAnnouncements([]));
+      .catch(console.error);
   }, []);
 
-  const handleClick = (a) => {
-    const displayText = `${a.title}: ${a.body}`;
-    const isActive =
+  const handleShowAnnouncement = (ann) => {
+    if (
       activeContent?.contentType === 'announcement' &&
-      activeContent?.stanzaOrVerse === displayText;
-
-    if (isActive) {
+      activeContent.contentId === ann.id &&
+      activeContent.stanzaOrVerse === ann.body
+    ) {
       socket.emit('clearContent');
     } else {
       socket.emit('showContent', {
         contentType: 'announcement',
-        contentId: a.id,
-        stanzaOrVerse: displayText
+        contentId: ann.id,
+        stanzaOrVerse: ann.body,
+        targetDisplays: [activeDisplayId]
       });
     }
   };
 
   return (
-    <Box mt={4}>
-      <Heading size="sm" mb={3}>Announcements</Heading>
-      <VStack spacing={3} align="stretch" maxH="60vh" overflowY="auto">
-        {announcements.map((a) => {
-          const displayText = `${a.title}: ${a.body}`;
-          const isActive =
-            activeContent?.contentType === 'announcement' &&
-            activeContent?.stanzaOrVerse === displayText;
-
-          return (
+    <Box>
+      <Heading size="md" mb={4}>Announcements</Heading>
+      <VStack spacing={2} align="stretch">
+        {announcements.length > 0 ? (
+          announcements.map((ann) => (
             <Box
-              key={a.id}
-              p={4}
+              key={ann.id}
+              p={3}
               borderRadius="md"
-              borderWidth="1px"
-              bg={isActive ? 'orange.100' : 'gray.50'}
-              _hover={{ bg: 'gray.100' }}
+              bg={
+                activeContent?.contentType === 'announcement' &&
+                activeContent.contentId === ann.id &&
+                activeContent.stanzaOrVerse === ann.body
+                  ? 'teal.100'
+                  : 'gray.50'
+              }
               cursor="pointer"
-              onClick={() => handleClick(a)}
+              onClick={() => handleShowAnnouncement(ann)}
             >
-              <Text fontWeight="bold">{a.title}</Text>
-              <Text fontSize="sm" color="gray.600" noOfLines={2}>
-                {a.body}
-              </Text>
+              <Text fontWeight="bold">{ann.title}</Text>
+              <Text fontSize="sm" color="gray.600" noOfLines={2}>{ann.body}</Text>
             </Box>
-          );
-        })}
+          ))
+        ) : (
+          <Text fontSize="sm" color="gray.500">No announcements available.</Text>
+        )}
       </VStack>
     </Box>
   );

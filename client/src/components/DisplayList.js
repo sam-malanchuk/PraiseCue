@@ -1,130 +1,135 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Box,
-  Button,
-  Flex,
-  Text,
-  Stack,
-  Badge,
-  Link
-} from '@chakra-ui/react';
+import { Box, Button, Flex, Text, Stack, Badge, Link } from '@chakra-ui/react';
+import { useAppContext } from '../context/AppContext';
 
-function DisplayList({ activeDisplayId, setActiveDisplayId }) {
+function DisplayList() {
+  const { socket, activeDisplayId, setActiveDisplayId } = useAppContext();
   const [displays, setDisplays] = useState([]);
-  const [localIp, setLocalIp] = useState('localhost');
+  const localIp = window.location.hostname;
 
+  // Fetch displays from server
   const fetchDisplays = async () => {
     try {
       const res = await fetch('/api/displays');
       const data = await res.json();
-
-      if (Array.isArray(data)) {
-        setDisplays(data);
-      } else {
-        console.warn('Expected array of displays, got:', data);
-        setDisplays([]);
-      }
+      setDisplays(data);
     } catch (err) {
-      console.error('Failed to load displays:', err);
-      setDisplays([]);
+      console.error(err);
     }
   };
 
   useEffect(() => {
+    // Subscribe to remote selection
+    socket.on('displaySelected', ({ displayNumber }) => {
+      setActiveDisplayId(displayNumber);
+    });
+    // Subscribe to display list updates
+    socket.on('displaysUpdated', () => {
+      fetchDisplays();
+    });
+
+    // Initial load
     fetchDisplays();
 
-    // Attempt to detect local IP (fallback to localhost)
-    const ip = window.location.hostname || 'localhost';
-    setLocalIp(ip);
-  }, []);
-
-  const getNextAvailableDisplayNumber = () => {
-    const used = new Set(
-      displays.map((d) => parseInt(d.name.replace('Display ', '')))
-    );
-    for (let i = 1; i < 1000; i++) {
-      if (!used.has(i)) return i;
-    }
-    return used.size + 1;
-  };
+    return () => {
+      socket.off('displaySelected');
+      socket.off('displaysUpdated');
+    };
+  }, [socket]);
 
   const createDisplay = async () => {
-    const nextNum = getNextAvailableDisplayNumber();
-    await fetch('/api/displays', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: `Display ${nextNum}`, mode: 'solo' })
-    });
-    await fetchDisplays();
-    setActiveDisplayId(nextNum);
+    try {
+      await fetch('/api/displays', { method: 'POST' });
+      socket.emit('displaysUpdated');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const deleteDisplay = async (id, number) => {
+    try {
+      await fetch(`/api/displays/${id}`, { method: 'DELETE' });
+      if (activeDisplayId === number) {
+        setActiveDisplayId(null);
+        socket.emit('displaySelected', null);
+      }
+      socket.emit('displaysUpdated');
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const toggleMode = async (display) => {
     const newMode = display.mode === 'solo' ? 'follow' : 'solo';
-    await fetch(`/api/displays/${display.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...display, mode: newMode })
-    });
-    fetchDisplays();
+    try {
+      await fetch(`/api/displays/${display.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: display.name,
+          mode: newMode,
+          groupId: display.group_id
+        }),
+      });
+      socket.emit('displaysUpdated');
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const deleteDisplay = async (id) => {
-    await fetch(`/api/displays/${id}`, { method: 'DELETE' });
-    fetchDisplays();
-    if (activeDisplayId === id) setActiveDisplayId(null);
+  const selectDisplay = (display) => {
+    setActiveDisplayId(display.display_number);
+    socket.emit('selectDisplay', display.display_number);
   };
 
   return (
-    <Box mt={8}>
-      <Flex justify="space-between" mb={3} align="center">
+    <Box borderWidth="1px" borderRadius="md" p={4} mb={4}>
+      <Flex justifyContent="space-between" mb={3}>
         <Text fontSize="xl" fontWeight="bold">Displays</Text>
-        <Button colorScheme="teal" onClick={createDisplay}>+ New Display</Button>
+        <Button size="sm" colorScheme="teal" onClick={createDisplay}>+ New</Button>
       </Flex>
 
-      <Stack spacing={4}>
+      <Stack spacing={3}>
         {displays.map((display) => {
-          const displayUrl = `http://${localIp}/display/${display.display_number}`;
           const isActive = display.display_number === activeDisplayId;
+          const displayUrl = `http://${localIp}/display/${display.display_number}`;
 
           return (
             <Box
               key={display.id}
-              p={4}
+              p={3}
               borderRadius="md"
               borderWidth="1px"
-              bg={isActive ? '#EDF2F7' : '#FFFFFF'}
-              _dark={{
-                bg: isActive ? '#2D3748' : '#1A202C'
-              }}
+              bg={isActive ? 'teal.50' : 'white'}
               cursor="pointer"
-              onClick={() => setActiveDisplayId(display.display_number)}
+              onClick={() => selectDisplay(display)}
             >
-              <Flex justify="space-between" align="center">
+              <Flex justifyContent="space-between" alignItems="center">
                 <Box>
                   <Text fontWeight="medium">{display.name}</Text>
                   <Badge colorScheme={display.mode === 'follow' ? 'purple' : 'green'}>
                     {display.mode.toUpperCase()}
                   </Badge>
                   <Text fontSize="xs" mt={1}>
-                    <Link href={displayUrl} target="_blank" color="blue.500">
+                    <Link href={displayUrl} target="_blank">
                       {displayUrl}
                     </Link>
                   </Text>
                 </Box>
 
                 <Flex gap={2}>
-                  <Button size="sm" onClick={(e) => {
-                    e.stopPropagation();
-                    toggleMode(display);
-                  }}>
-                    Toggle Mode
+                  <Button
+                    size="xs"
+                    onClick={(e) => { e.stopPropagation(); toggleMode(display); }}
+                  >
+                    Mode
                   </Button>
-                  <Button size="sm" colorScheme="red" onClick={(e) => {
-                    e.stopPropagation();
-                    deleteDisplay(display.id);
-                  }}>
-                    Remove
+                  <Button
+                    size="xs"
+                    colorScheme="red"
+                    onClick={(e) => { e.stopPropagation(); deleteDisplay(display.id, display.display_number); }}
+                  >
+                    Delete
                   </Button>
                 </Flex>
               </Flex>

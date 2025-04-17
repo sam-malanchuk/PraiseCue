@@ -4,10 +4,14 @@ const db = require('../db/init');
 
 // Get all announcements
 router.get('/', (req, res) => {
-  db.all('SELECT * FROM announcements ORDER BY created_at DESC', [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
+  db.all(
+    'SELECT id, title, body, created_at FROM announcements ORDER BY created_at DESC',
+    [],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    }
+  );
 });
 
 // Add new announcement
@@ -18,9 +22,16 @@ router.post('/', (req, res) => {
   }
 
   const stmt = db.prepare('INSERT INTO announcements (title, body) VALUES (?, ?)');
-  stmt.run(title, body, function (err) {
+  stmt.run(title, body, function(err) {
     if (err) return res.status(500).json({ error: err.message });
-    res.status(201).json({ id: this.lastID });
+    db.get(
+      'SELECT id, title, body, created_at FROM announcements WHERE id = ?',
+      [this.lastID],
+      (err2, row) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        res.status(201).json(row);
+      }
+    );
   });
 });
 

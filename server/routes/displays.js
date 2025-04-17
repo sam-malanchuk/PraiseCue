@@ -2,48 +2,83 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/init');
 
-// Get the next available display number
-function getNextAvailableDisplayNumber(callback) {
-  db.all('SELECT display_number FROM displays ORDER BY display_number ASC', [], (err, rows) => {
-    if (err) return callback(err);
-    const used = new Set(rows.map(r => r.display_number));
-    for (let i = 1; i < 1000; i++) {
-      if (!used.has(i)) return callback(null, i);
-    }
-    callback(null, used.size + 1);
-  });
-}
-
 // Get all displays
 router.get('/', (req, res) => {
-  db.all('SELECT * FROM displays ORDER BY display_number ASC', [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows); // ✅ This must be an array
-  });
+  db.all(
+    `SELECT id, display_number, name, mode, group_id, template
+     FROM displays ORDER BY display_number ASC`,
+    [],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    }
+  );
+});
+
+// Get single display by display_number
+router.get('/:id', (req, res) => {
+  const displayNum = req.params.id;
+  db.get(
+    `SELECT id, display_number, name, mode, group_id as groupId, template
+     FROM displays WHERE display_number = ?`,
+    [displayNum],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!row) return res.status(404).json({ error: 'Display not found' });
+      res.json(row);
+    }
+  );
 });
 
 // Create new display
 router.post('/', (req, res) => {
-  const { mode, group_id } = req.body;
-
-  getNextAvailableDisplayNumber((err, number) => {
+  // defensive default when no JSON body is sent
+  const { mode = 'solo', groupId = null, template = {} } = req.body || {};
+  // Determine next available display_number
+  db.all('SELECT display_number FROM displays ORDER BY display_number ASC', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
+    const used = new Set(rows.map(r => r.display_number));
+    let number = 1;
+    while (used.has(number)) number++;
 
     const name = `Display ${number}`;
-    const stmt = db.prepare('INSERT INTO displays (display_number, name, mode, group_id) VALUES (?, ?, ?, ?)');
-    stmt.run(number, name, mode || 'solo', group_id || null, function (err) {
+    const stmt = db.prepare(
+      `INSERT INTO displays
+       (display_number, name, mode, group_id, template)
+       VALUES (?, ?, ?, ?, ?)`
+    );
+    stmt.run(number, name, mode, groupId, JSON.stringify(template), function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      res.status(201).json({ id: this.lastID, display_number: number });
+      res.status(201).json({
+        id: this.lastID,
+        display_number: number,
+        name,
+        mode,
+        groupId,
+        template
+      });
     });
   });
 });
 
-// Update display
+// Update display (name, mode, groupId, template)
 router.put('/:id', (req, res) => {
-  const { name, mode, group_id } = req.body;
-  const { id } = req.params;
-  const stmt = db.prepare('UPDATE displays SET name = ?, mode = ?, group_id = ? WHERE id = ?');
-  stmt.run(name, mode, group_id, id, function (err) {
+  const displayNum = req.params.id;
+  const { name, mode, groupId = null, template } = req.body;
+  const updates = [];
+  const params = [];
+  if (name !== undefined) { updates.push('name = ?'); params.push(name); }
+  if (mode !== undefined) { updates.push('mode = ?'); params.push(mode); }
+  if (req.body.hasOwnProperty('groupId')) { updates.push('group_id = ?'); params.push(groupId); }
+  if (template !== undefined) { updates.push('template = ?'); params.push(JSON.stringify(template)); }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  const sql = `UPDATE displays SET ${updates.join(', ')} WHERE display_number = ?`;
+  params.push(displayNum);
+  db.run(sql, params, function(err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ updated: this.changes });
   });
@@ -51,11 +86,15 @@ router.put('/:id', (req, res) => {
 
 // Delete display
 router.delete('/:id', (req, res) => {
-  const { id } = req.params;
-  db.run('DELETE FROM displays WHERE id = ?', [id], function (err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ deleted: this.changes });
-  });
+  const displayNum = req.params.id;
+  db.run(
+    'DELETE FROM displays WHERE display_number = ?',
+    [displayNum],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ deleted: this.changes });
+    }
+  );
 });
 
 module.exports = router;

@@ -1,68 +1,43 @@
 import React, { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
 import {
   Box,
   Button,
   ButtonGroup,
-  Code,
   Flex,
   Heading,
-  Stack,
   Text
 } from '@chakra-ui/react';
-
+import { useAppContext } from '../context/AppContext';
 import TabBible from '../components/TabBible';
 import TabSongs from '../components/TabSongs';
 import TabAnnouncements from '../components/TabAnnouncements';
 import ScheduleSidebar from '../components/ScheduleSidebar';
 import DisplayList from '../components/DisplayList';
 import SongImporter from '../components/SongImporter';
-
-const socket = io('http://localhost:3001'); // Adjust if needed
+import AnnouncementImporter from '../components/AnnouncementImporter';
 
 function Controller() {
+  const { socket, activeContent, activeDisplayId, setActiveDisplayId } = useAppContext();
   const [activeTab, setActiveTab] = useState('bible');
-  const [activeContent, setActiveContent] = useState(null);
-  const [activeDisplayId, setActiveDisplayId] = useState(null);
+  const tabs = ['bible', 'songs', 'announcements'];
 
+  // Handle ESC to clear content
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         socket.emit('clearContent');
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
-    socket.emit('registerController');
-
-    socket.on('contentUpdate', (data) => setActiveContent(data));
-    socket.on('contentClear', () => setActiveContent(null));
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      socket.off('contentUpdate');
-      socket.off('contentClear');
-    };
-  }, []);
-
-  const handleSendContent = () => {
-    socket.emit('showContent', {
-      contentType: 'bible',
-      contentId: 1,
-      stanzaOrVerse: 'John 3:16',
-    });
-  };
-
-  const handleClear = () => {
-    socket.emit('clearContent');
-  };
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [socket]);
 
   return (
-    <Box p={6}>
-      <Heading size="lg" mb={4}>Controller Interface</Heading>
+    <Box p={4}>
+      <Heading mb={4}>PraiseCue Controller</Heading>
 
-      <ButtonGroup isAttached variant="outline" mb={4}>
-        {['bible', 'songs', 'announcements'].map((tab) => (
+      <ButtonGroup mb={6} isAttached>
+        {tabs.map((tab) => (
           <Button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -73,48 +48,29 @@ function Controller() {
         ))}
       </ButtonGroup>
 
-      <Box mb={6}>
-        {activeTab === 'bible' && (
-          <TabBible socket={socket} activeContent={activeContent} />
-        )}
-        {activeTab === 'songs' && (
-          <TabSongs socket={socket} activeContent={activeContent} />
-        )}
-        {activeTab === 'announcements' && (
-          <TabAnnouncements socket={socket} activeContent={activeContent} />
-        )}
-      </Box>
-
-      <Flex gap={4} mb={6}>
-        <Button colorScheme="blue" onClick={handleSendContent}>
-          Send Sample Content
-        </Button>
-        <Button colorScheme="red" onClick={handleClear}>
-          Clear
-        </Button>
-      </Flex>
-
-      <Box mb={6}>
-        <Text fontWeight="medium">Currently Displayed:</Text>
-        <Code fontSize="sm" whiteSpace="pre-wrap">
-          {activeContent ? JSON.stringify(activeContent, null, 2) : 'Nothing'}
-        </Code>
-      </Box>
-
-      <Flex gap={6} align="flex-start" wrap="wrap">
-        <Box flex="1" minW="300px">
-          <ScheduleSidebar socket={socket} activeContent={activeContent} />
+      <Flex>
+        <Box flex="2" mr={4}>
+          {activeTab === 'bible' && <TabBible />}
+          {activeTab === 'songs' && <TabSongs />}
+          {activeTab === 'announcements' && <TabAnnouncements />}
         </Box>
+
+        <Box flex="1" mr={4}>
+          <ScheduleSidebar />
+        </Box>
+
         <Box flex="1" minW="300px">
-          <DisplayList
-            activeDisplayId={activeDisplayId}
-            setActiveDisplayId={setActiveDisplayId}
-          />
+          <DisplayList />
           <Box mt={4}>
             <SongImporter />
+            <AnnouncementImporter />
           </Box>
         </Box>
       </Flex>
+
+      <Text mt={4} fontSize="sm">
+        Active Display: {activeDisplayId || 'None'} | Active Content: {activeContent?.contentType || 'None'}
+      </Text>
     </Box>
   );
 }

@@ -12,29 +12,19 @@ const db = require('./db/init'); // Ensure schema is initialized
 const registerSocketHandlers = require('./socket'); // Will be created next
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
-});
-
-// Middleware
+// Enable CORS and parse JSON bodies
 app.use(cors());
 app.use(express.json());
-
-// Static frontend build (when deployed)
-const clientBuildPath = path.join(__dirname, '../client/build');
-app.use(express.static(clientBuildPath));
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(clientBuildPath, 'index.html'));
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: '*', methods: ['GET','POST'] }
 });
 
+// Mount API routes
 app.use('/api/songs', songsRouter);
 app.use('/api/announcements', announcementsRouter);
 app.use('/api/schedules', schedulesRouter);
+app.use('/api/displays', displaysRouter);
 app.use('/api/displays', displaysRouter);
 
 // Socket.IO

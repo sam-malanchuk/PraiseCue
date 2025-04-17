@@ -1,94 +1,79 @@
-module.exports = (socket, io, db) => {
-  // Controller sends content to show
-  socket.on('showContent', (data) => {
-    const stmt = db.prepare(`
-      INSERT OR REPLACE INTO active_content (id, content_type, content_id, stanza_or_verse, display_group_id)
-      VALUES (1, ?, ?, ?, ?)
-    `);
+const displayMap = new Map();
 
+module.exports = (socket, io, db) => {
+  // Register a display on connection
+  socket.on('registerDisplay', ({ displayNumber, mode, groupId }) => {
+    displayMap.set(socket.id, { displayNumber, mode, groupId });
+    socket.join(`display_${displayNumber}`);
+    if (mode === 'follow' && groupId) {
+      socket.join(`group_${groupId}`);
+    }
+    // Send current active content if exists
+    db.get('SELECT * FROM active_content WHERE id = 1', [], (err, row) => {
+      if (!err && row && row.content_type) {
+        const payload = {
+          contentType: row.content_type,
+          contentId: row.content_id,
+          stanzaOrVerse: row.stanza_or_verse,
+          targetDisplays: JSON.parse(row.target_displays || '[]'),
+          targetGroup: row.target_group
+        };
+        socket.emit('contentUpdate', payload);
+      }
+    });
+  });
+
+  // Handle content publish from controller
+  socket.on('showContent', (data) => {
+    const stmt = db.prepare(
+      `INSERT OR REPLACE INTO active_content
+       (id, content_type, content_id, stanza_or_verse, target_displays, target_group)
+       VALUES (1, ?, ?, ?, ?, ?)`
+    );
     stmt.run(
       data.contentType,
       data.contentId,
       data.stanzaOrVerse || null,
-      data.displayGroupId || null
+      JSON.stringify(data.targetDisplays || []),
+      data.targetGroup || null
     );
+    stmt.finalize();
 
-    // Selectively send updates
-    io.sockets.sockets.forEach((clientSocket) => {
-      const s = clientSocket.data;
-      if (!s?.displayId) return;
-
-      const isFollow =
-        s.mode === 'follow' && s.groupId === data.displayGroupId;
-
-      const isSolo =
-        s.mode === 'solo' &&
-        (!data.displayGroupId || s.displayId === data.displayGroupId);
-
-      if (isFollow || isSolo) {
-        clientSocket.emit('contentUpdate', data);
-      }
+    // Broadcast to specified display rooms
+    (data.targetDisplays || []).forEach((num) => {
+      io.to(`display_${num}`).emit('contentUpdate', data);
     });
+    // Broadcast to follow-group rooms
+    if (data.targetGroup) {
+      io.to(`group_${data.targetGroup}`).emit('contentUpdate', data);
+    }
+    // Update all controllers
+    io.emit('contentUpdate', data);
   });
 
-  // Controller clears content (ESC or toggle)
+  // Clear content (e.g. ESC)
   socket.on('clearContent', () => {
-    db.run(`DELETE FROM active_content WHERE id = 1`);
-    io.emit('contentClear');
-  });
-
-  // Display joins
-  socket.on('registerDisplay', (displayId) => {
-    console.log(`Display ${displayId} connected.`);
-
-    db.get('SELECT * FROM displays WHERE id = ?', [displayId], (err, display) => {
-      if (err || !display) return;
-
-      socket.data.displayId = display.id;
-      socket.data.mode = display.mode;
-      socket.data.groupId = display.group_id;
-
-      // Send current content if eligible
-      db.get('SELECT * FROM active_content WHERE id = 1', [], (err, row) => {
-        if (!err && row && row.content_type && row.stanza_or_verse) {
-          const shouldFollow =
-            display.mode === 'follow' && row.display_group_id === display.group_id;
-
-          const shouldSolo =
-            display.mode === 'solo' &&
-            (!row.display_group_id || row.display_group_id === display.id);
-
-          if (shouldFollow || shouldSolo) {
-            socket.emit('contentUpdate', {
-              contentType: row.content_type,
-              contentId: row.content_id,
-              stanzaOrVerse: row.stanza_or_verse,
-              displayGroupId: row.display_group_id || null
-            });
-          }
-        }
-      });
+    db.run('DELETE FROM active_content WHERE id = 1', (err) => {
+      if (err) console.error('Error clearing active_content:', err);
+      io.emit('contentClear');
     });
   });
 
-  // Controller joins
-  socket.on('registerController', () => {
-    console.log(`Controller connected.`);
-
-    db.get('SELECT * FROM active_content WHERE id = 1', [], (err, row) => {
-      if (!err && row && row.content_type && row.stanza_or_verse) {
-        socket.emit('contentUpdate', {
-          contentType: row.content_type,
-          contentId: row.content_id,
-          stanzaOrVerse: row.stanza_or_verse,
-          displayGroupId: row.display_group_id || null
-        });
-      }
-    });
+  // When a controller selects a display, broadcast to all controllers
+  socket.on('selectDisplay', (displayNumber) => {
+    console.log('Display selected:', displayNumber);
+    io.emit('displaySelected', { displayNumber });
   });
 
-  // Cleanup
   socket.on('disconnect', () => {
+    const info = displayMap.get(socket.id);
+    displayMap.delete(socket.id);
+    if (info) {
+      socket.leave(`display_${info.displayNumber}`);
+      if (info.mode === 'follow' && info.groupId) {
+        socket.leave(`group_${info.groupId}`);
+      }
+    }
     console.log('Socket disconnected:', socket.id);
   });
 };

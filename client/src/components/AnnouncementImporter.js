@@ -1,53 +1,50 @@
 import React, { useState } from 'react';
+import { Box, Heading, Input, Textarea, Button } from '@chakra-ui/react';
 
-function AnnouncementImporter() {
+export default function AnnouncementImporter() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
 
   const handleSubmit = async () => {
-    if (!title || !body) {
+    if (!title.trim() || !body.trim()) {
       alert('Both title and body are required');
       return;
     }
 
-    const res = await fetch('/api/announcements', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body })
-    });
-
-    const data = await res.json();
-    if (res.ok) {
-      alert(`Saved announcement ID ${data.id}`);
+    try {
+      const res = await fetch('/api/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body }),
+      });
+      if (!res.ok) throw new Error('Failed to save');
       setTitle('');
       setBody('');
-    } else {
-      alert('Error: ' + data.error);
+      alert('Announcement saved successfully');
+    } catch (err) {
+      console.error(err);
+      alert('Error saving announcement');
     }
   };
 
   return (
-    <div style={{ marginTop: 40 }}>
-      <h4>New Announcement</h4>
-      <input
-        type="text"
+    <Box borderWidth="1px" borderRadius="md" p={4} mb={4}>
+      <Heading size="sm" mb={2}>Import Announcement</Heading>
+      <Input
         placeholder="Title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        style={{ width: '100%', marginBottom: 10 }}
+        mb={2}
       />
-      <textarea
-        rows={5}
+      <Textarea
         placeholder="Body"
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        style={{ width: '100%' }}
+        mb={2}
       />
-      <button onClick={handleSubmit} style={{ marginTop: 10 }}>
+      <Button size="sm" colorScheme="teal" onClick={handleSubmit}>
         Save Announcement
-      </button>
-    </div>
+      </Button>
+    </Box>
   );
 }
-
-export default AnnouncementImporter;

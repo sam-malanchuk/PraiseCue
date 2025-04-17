@@ -1,77 +1,67 @@
 import React, { useEffect, useState } from 'react';
+import { Box, Heading, List, ListItem, Text, IconButton } from '@chakra-ui/react';
+import { MdDelete } from 'react-icons/md';
+import { useAppContext } from '../context/AppContext';
 
-function ScheduleSidebar({ socket, activeContent }) {
-  const displayId = 1;
+function ScheduleSidebar() {
+  const { socket, activeDisplayId } = useAppContext();
+  const displayId = activeDisplayId;
   const [schedule, setSchedule] = useState([]);
 
+  // Fetch schedule when displayId changes
   useEffect(() => {
+    if (!displayId) return;
     fetch(`/api/schedules/${displayId}`)
       .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setSchedule(data);
-        } else {
-          console.warn('Expected schedule to be array, got:', data);
-          setSchedule([]);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to fetch schedule:', err);
-        setSchedule([]);
-      });
-  }, []);
+      .then((data) => setSchedule(Array.isArray(data) ? data : []))
+      .catch(console.error);
+  }, [displayId]);
 
-  const saveSchedule = (updated) => {
-    setSchedule(updated);
-    const items = updated.map((item) => ({
-      type: item.contentType,
-      item_id: item.contentId
-    }));
-
-    fetch(`/api/schedules/${displayId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items })
+  const handlePlayItem = (item) => {
+    socket.emit('showContent', {
+      contentType: item.type,
+      contentId: item.item_id,
+      stanzaOrVerse: item.stanza_or_verse,
+      targetGroup: null,
     });
   };
 
-  const addToSchedule = () => {
-    if (!activeContent) return;
-    const newItem = { id: Date.now(), ...activeContent };
-    const updated = [...schedule, newItem];
-    saveSchedule(updated);
-  };
-
-  const removeItem = (id) => {
-    const updated = schedule.filter((item) => item.id !== id);
-    saveSchedule(updated);
-  };
-
-  const clearAll = () => {
-    saveSchedule([]);
-  };
-
-  const handleClickItem = (item) => {
-    socket.emit('showContent', item);
+  const removeItem = (itemId) => {
+    const remaining = schedule.filter((i) => i.id !== itemId);
+    // Overwrite schedule via POST
+    fetch(`/api/schedules/${displayId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: remaining }),
+    })
+      .then((res) => res.json())
+      .then(() => setSchedule(remaining))
+      .catch(console.error);
   };
 
   return (
-    <div style={{ border: '1px solid #ccc', padding: 10, width: 250 }}>
-      <h4>Schedule</h4>
-      <button onClick={addToSchedule} disabled={!activeContent}>+ Add Current</button>
-      <button onClick={clearAll} style={{ marginLeft: 10 }}>Clear All</button>
-
-      <ul style={{ listStyle: 'none', padding: 0, marginTop: 10 }}>
-        {schedule.map((item, idx) => (
-          <li key={item.id || idx} style={{ marginBottom: 8 }}>
-            <button onClick={() => handleClickItem(item)} style={{ width: '100%' }}>
-              {item.contentType}: {item.stanzaOrVerse}
-            </button>
-            <button onClick={() => removeItem(item.id || idx)} style={{ marginLeft: 4 }}>x</button>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <Box borderWidth="1px" borderRadius="md" p={4} mb={4}>
+      <Heading size="sm" mb={3}>Schedule</Heading>
+      <List spacing={2}>
+        {schedule.length ? (
+          schedule.map((item) => (
+            <ListItem key={item.id} display="flex" alignItems="center" justifyContent="space-between">
+              <Text cursor="pointer" onClick={() => handlePlayItem(item)}>
+                {item.type}: {item.stanza_or_verse || item.item_id}
+              </Text>
+              <IconButton
+                size="sm"
+                aria-label="Remove item"
+                icon={<MdDelete />}
+                onClick={() => removeItem(item.id)}
+              />
+            </ListItem>
+          ))
+        ) : (
+          <Text fontSize="sm" color="gray.500">No scheduled items</Text>
+        )}
+      </List>
+    </Box>
   );
 }
 

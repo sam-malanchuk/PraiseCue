@@ -1,89 +1,108 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { Box, Text, VStack, Heading } from '@chakra-ui/react';
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:3001');
-
 function Display() {
-  const { id } = useParams(); // Display ID from URL
+  const { id } = useParams();
   const displayId = parseInt(id, 10);
   const [mode, setMode] = useState('solo');
+  const [groupId, setGroupId] = useState(null);
   const [content, setContent] = useState(null);
   const [stanzaLines, setStanzaLines] = useState([]);
 
+  // Initialize socket
+  const [socket] = useState(() => io(`http://${window.location.hostname}:3001`));
+
   useEffect(() => {
+    // Store in case we need it later
     localStorage.setItem('displayId', displayId);
+
+    // Fetch display metadata (mode and group)
     fetch(`/api/displays/${displayId}`)
       .then((res) => res.json())
-      .then((data) => setMode(data.mode || 'solo'));
+      .then((data) => {
+        setMode(data.mode || 'solo');
+        setGroupId(data.groupId || null);
+        // Register on server for this display
+        socket.emit('registerDisplay', {
+          displayNumber: displayId,
+          mode: data.mode,
+          groupId: data.groupId,
+        });
+      })
+      .catch(console.error);
 
-    socket.emit('registerDisplay', displayId);
+    // Listen for content updates
+    socket.on('contentUpdate', (data) => {
+      const { contentType, contentId, stanzaOrVerse, targetDisplays = [], targetGroup } = data;
+      const isSoloTarget = mode === 'solo' && targetDisplays.includes(displayId);
+      const isGroupTarget = mode === 'follow' && targetGroup === groupId;
+      if (!isSoloTarget && !isGroupTarget) return;
 
-    socket.on('contentUpdate', async (data) => {
-      const isFollow = mode === 'follow';
-      const isSoloTarget = !Array.isArray(data.targetDisplays); // solo-targeted
-      const isFollowTarget = Array.isArray(data.targetDisplays) && data.targetDisplays.includes(displayId);
-      if (!(isSoloTarget || isFollowTarget)) return;
+      setContent({ contentType, contentId, stanzaOrVerse });
 
-      setContent(data);
+      if (contentType === 'song') {
+        fetch(`/api/songs/${contentId}`)
+          .then((res) => res.json())
+          .then((song) => {
+            setStanzaLines(song.content || []);
+          })
+          .catch(console.error);
+      }
 
-      if (data.contentType === 'song') {
-        const res = await fetch(`/api/songs/${data.contentId}`);
-        const song = await res.json();
-        const stanzas = JSON.parse(song.content);
-        const stanza = stanzas.find((s) => `${song.title} - ${s.title}` === data.stanzaOrVerse);
-        setStanzaLines(stanza?.lines || []);
-      } else {
-        setStanzaLines([]);
+      if (contentType === 'bible') {
+        fetch(`/api/bible/${contentId}`)
+          .then((res) => res.json())
+          .then((verse) => setStanzaLines([verse.text]))
+          .catch(console.error);
       }
     });
 
+    // Listen for clear signal
     socket.on('contentClear', () => {
       setContent(null);
       setStanzaLines([]);
     });
 
-    const handleEsc = (e) => {
-      if (e.key === 'Escape') {
-        socket.emit('clearContent');
-      }
-    };
-
-    window.addEventListener('keydown', handleEsc);
     return () => {
-      window.removeEventListener('keydown', handleEsc);
       socket.off('contentUpdate');
       socket.off('contentClear');
+      socket.disconnect();
     };
-  }, [displayId, mode]);
+  }, [socket, displayId, mode, groupId]);
 
   return (
-    <div style={{
-      height: '100vh',
-      background: '#000',
-      color: '#fff',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '2.5rem',
-      textAlign: 'center',
-      padding: 40,
-    }}>
-      {!content && <div>No content</div>}
+    <Box p={4} textAlign="center">
+      <Heading mb={4}>Display {displayId}</Heading>
+
+      {!content && <Text fontSize="lg">No content</Text>}
 
       {content?.contentType === 'bible' && (
-        <div>{content.stanzaOrVerse}</div>
+        <VStack spacing={4}>
+          <Text fontSize="2xl">{content.stanzaOrVerse}</Text>
+          {stanzaLines.map((line, idx) => (
+            <Text key={idx}>{line}</Text>
+          ))}
+        </VStack>
       )}
 
-      {content?.contentType === 'song' && stanzaLines.map((line, i) => (
-        <div key={i}>{line}</div>
-      ))}
+      {content?.contentType === 'song' && (
+        <VStack spacing={4}>
+          <Text fontSize="2xl">{content.stanzaOrVerse}</Text>
+          {stanzaLines.map((line, idx) => (
+            <Text key={idx}>{line}</Text>
+          ))}
+        </VStack>
+      )}
 
       {content?.contentType === 'announcement' && (
-        <div>{content.stanzaOrVerse}</div>
+        <VStack spacing={4}>
+          <Text fontSize="2xl">Announcement</Text>
+          <Text>{content.stanzaOrVerse}</Text>
+        </VStack>
       )}
-    </div>
+    </Box>
   );
 }
 

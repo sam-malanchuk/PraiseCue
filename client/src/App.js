@@ -1,16 +1,28 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-
+import { ChakraProvider } from '@chakra-ui/react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Controller from './pages/Controller';
 import Display from './pages/Display';
+import { AppProvider } from './context/AppContext';
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/controller" />} />
-      <Route path="/controller" element={<Controller />} />
-      <Route path="/display/:id" element={<Display />} />
-    </Routes>
+    <ChakraProvider>
+      <AppProvider>
+        <Router>
+          <Routes>
+            {/* Primary controller interface */}
+            <Route path="/controller" element={<Controller />} />
+
+            {/* Display screens by ID */}
+            <Route path="/display/:id" element={<Display />} />
+
+            {/* Default to controller */}
+            <Route path="*" element={<Navigate to="/controller" replace />} />
+          </Routes>
+        </Router>
+      </AppProvider>
+    </ChakraProvider>
   );
 }
 

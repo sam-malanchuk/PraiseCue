@@ -1,100 +1,99 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Box,
-  Text,
-  Flex,
-  VStack,
-  Button,
-  Heading
-} from '@chakra-ui/react';
+import { Box, VStack, Text, Heading } from '@chakra-ui/react';
+import { useAppContext } from '../context/AppContext';
 
-function TabSongs({ socket, activeContent }) {
+function TabSongs() {
+  const { socket, activeContent, activeDisplayId } = useAppContext();
   const [songs, setSongs] = useState([]);
   const [selectedSong, setSelectedSong] = useState(null);
-  const [selectedStanzaTitle, setSelectedStanzaTitle] = useState('');
 
+  // Fetch song summaries on mount
   useEffect(() => {
     fetch('/api/songs')
       .then((res) => res.json())
       .then(setSongs)
-      .catch(() => setSongs([]));
+      .catch(console.error);
   }, []);
 
-  const loadSong = async (id) => {
-    const song = await fetch(`/api/songs/${id}`).then((res) => res.json());
-    song.stanzas = JSON.parse(song.content);
-    setSelectedSong(song);
-    setSelectedStanzaTitle('');
+  // Load full song details when a song is selected
+  const handleSelectSong = async (song) => {
+    try {
+      const res = await fetch(`/api/songs/${song.id}`);
+      if (!res.ok) throw new Error('Failed to fetch song');
+      const fullSong = await res.json();
+      setSelectedSong(fullSong);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const handleStanzaClick = (title) => {
-    const displayText = `${selectedSong.title} - ${title}`;
-    const isAlreadyActive =
+  // Show or clear stanza on click
+  const handleShowStanza = (stanza) => {
+    if (
       activeContent?.contentType === 'song' &&
-      activeContent?.stanzaOrVerse === displayText;
-
-    if (isAlreadyActive) {
+      activeContent.contentId === selectedSong.id &&
+      activeContent.stanzaOrVerse === stanza.title
+    ) {
       socket.emit('clearContent');
-      setSelectedStanzaTitle('');
     } else {
       socket.emit('showContent', {
         contentType: 'song',
         contentId: selectedSong.id,
-        stanzaOrVerse: displayText
+        stanzaOrVerse: stanza.title,
+        targetDisplays: [activeDisplayId],
       });
-      setSelectedStanzaTitle(title);
     }
   };
 
   return (
-    <Flex gap={6} mt={4}>
-      <Box w="40%" maxH="60vh" overflowY="auto" borderWidth="1px" borderRadius="md" p={3}>
-        <Heading size="sm" mb={3}>Songs</Heading>
-        <VStack align="stretch" spacing={2}>
-          {songs.map((song) => (
-            <Button
-              key={song.id}
-              variant={selectedSong?.id === song.id ? 'solid' : 'outline'}
-              colorScheme="teal"
-              size="sm"
-              onClick={() => loadSong(song.id)}
-            >
-              {song.title}
-            </Button>
-          ))}
-        </VStack>
-      </Box>
+    <Box>
+      <Heading size="md" mb={4}>Songs</Heading>
 
-      <Box w="60%" maxH="60vh" overflowY="auto" borderWidth="1px" borderRadius="md" p={3}>
-        <Heading size="sm" mb={3}>
-          {selectedSong ? `Stanzas in ${selectedSong.title}` : 'Select a song'}
-        </Heading>
-        {selectedSong?.stanzas?.length ? (
-          <VStack align="stretch" spacing={2}>
-            {selectedSong.stanzas.map((s, idx) => {
-              const displayText = `${selectedSong.title} - ${s.title}`;
-              const isActive = activeContent?.stanzaOrVerse === displayText;
-              return (
-                <Box
-                  key={idx}
-                  p={3}
-                  borderRadius="md"
-                  bg={isActive ? 'teal.100' : 'gray.50'}
-                  _hover={{ bg: 'teal.50' }}
-                  cursor="pointer"
-                  onClick={() => handleStanzaClick(s.title)}
-                >
-                  <Text fontWeight="medium">{s.title}</Text>
-                  <Text fontSize="sm" color="gray.600">{s.lines?.[0]}</Text>
-                </Box>
-              );
-            })}
+      {/* Song list */}
+      <VStack spacing={2} align="stretch">
+        {songs.map((song) => (
+          <Box
+            key={song.id}
+            p={3}
+            borderRadius="md"
+            bg={selectedSong?.id === song.id ? 'teal.50' : 'gray.50'}
+            cursor="pointer"
+            onClick={() => handleSelectSong(song)}
+          >
+            <Text fontWeight="bold">{song.title}</Text>
+            {song.tags && <Text fontSize="sm" color="gray.600">{song.tags.join(', ')}</Text>}
+          </Box>
+        ))}
+      </VStack>
+
+      {/* Stanza list */}
+      {selectedSong?.content?.length > 0 && (
+        <Box mt={6}>
+          <Heading size="sm" mb={3}>{selectedSong.title} - Stanzas</Heading>
+          <VStack spacing={2} align="stretch">
+            {selectedSong.content.map((stanza) => (
+              <Box
+                key={stanza.title}
+                p={2}
+                borderRadius="md"
+                bg={
+                  activeContent?.contentType === 'song' &&
+                    activeContent.contentId === selectedSong.id &&
+                    activeContent.stanzaOrVerse === stanza.title
+                    ? 'teal.100'
+                    : 'gray.50'
+                }
+                cursor="pointer"
+                onClick={() => handleShowStanza(stanza)}
+              >
+                <Text fontWeight="medium">{stanza.title}</Text>
+                <Text fontSize="sm" color="gray.600">{stanza.lines[0]}</Text>
+              </Box>
+            ))}
           </VStack>
-        ) : (
-          <Text fontSize="sm" color="gray.500">No stanzas available.</Text>
-        )}
-      </Box>
-    </Flex>
+        </Box>
+      )}
+    </Box>
   );
 }
 

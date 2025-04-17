@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS songs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
   tags TEXT,
-  content TEXT NOT NULL -- Stored in markdown-style blocks
+  content TEXT NOT NULL -- Stored as JSON array of stanzas
 );
 
 -- Announcements
@@ -24,30 +24,33 @@ CREATE TABLE IF NOT EXISTS announcements (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Bible Cache (optional, if you store fetched text)
-CREATE TABLE IF NOT EXISTS bible_cache (
+-- Bible Verses
+CREATE TABLE IF NOT EXISTS bible (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  version TEXT,
-  reference TEXT, -- e.g. "John 3:16"
-  content TEXT,
-  UNIQUE(version, reference)
+  book TEXT NOT NULL,
+  chapter INTEGER NOT NULL,
+  verse INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  UNIQUE(book, chapter, verse)
 );
 
 -- Schedules
 CREATE TABLE IF NOT EXISTS schedules (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  display_id INTEGER,
+  display_id INTEGER NOT NULL,
   type TEXT CHECK(type IN ('song', 'announcement', 'bible')) NOT NULL,
-  item_id INTEGER,
-  position INTEGER,
+  item_id INTEGER NOT NULL,
+  stanza_or_verse TEXT,
+  position INTEGER NOT NULL,
   FOREIGN KEY(display_id) REFERENCES displays(id)
 );
 
--- Display States (what’s currently shown)
+-- Display States (singleton)
 CREATE TABLE IF NOT EXISTS active_content (
-  id INTEGER PRIMARY KEY CHECK (id = 1), -- force singleton
+  id INTEGER PRIMARY KEY CHECK (id = 1),
   content_type TEXT,
   content_id INTEGER,
   stanza_or_verse TEXT,
-  display_group_id INTEGER
+  target_displays TEXT,       -- JSON list of display_numbers
+  target_group INTEGER        -- group_id for follow displays
 );
