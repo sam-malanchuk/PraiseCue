@@ -13,12 +13,12 @@
 Once running, visit the following from any device on your network:
 
 - **Controller**:  
-  `http://192.168.1.105/controller`
+  `http://192.168.1.1/controller`
 
 - **Displays**:  
-  `http://192.168.1.105/display/1`, `.../2`, etc.
+  `http://192.168.1.1/display/1`, `.../2`, etc.
 
-> Replace `192.168.1.105` with your actual local IP if different.
+> Replace `192.168.1.1` with your actual local IP if different.
 
 ---
 
