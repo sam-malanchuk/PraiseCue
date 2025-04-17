@@ -1,12 +1,48 @@
-# React + Vite
+# 📖 PraiseCue
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**PraiseCue** is a lightweight local-network presentation tool for displaying Bible verses, worship songs, and announcements on screens around your church or gathering.
 
-Currently, two official plugins are available:
+- Built with **React** (frontend) and **Node.js + SQLite** (backend)
+- Uses **Socket.IO** for real-time syncing between controller and displays
+- No cloud, no setup — just run it on your local machine and access it via LAN
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## Expanding the ESLint configuration
+## 📍 Local Access
 
-If you are developing a production application, we recommend using TypeScript and enable type-aware lint rules. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Once running, visit the following from any device on your network:
+
+- **Controller**:  
+  `http://192.168.1.105/controller`
+
+- **Displays**:  
+  `http://192.168.1.105/display/1`, `.../2`, etc.
+
+> Replace `192.168.1.105` with your actual local IP if different.
+
+---
+
+## 🚀 Getting Started
+
+```bash
+git clone https://github.com/yourusername/praisecue.git
+cd praisecue
+npm install
+```
+
+## Run Front & Backend (uses concurrently)
+```bash
+npm run dev
+```
+
+## Run Backend separately
+```bash
+cd server
+npm run dev
+```
+
+## Run Frontend separately on Port 80 (after setcap)
+```bash
+cd client
+PORT=80 HOST=0.0.0.0 npm start
+```
