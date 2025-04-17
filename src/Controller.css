@@ -1,0 +1,59 @@
+.controller-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    font-family: sans-serif;
+  }
+  
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: #1e1e1e;
+    color: white;
+  }
+  
+  .tabs {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .tab {
+    padding: 8px 16px;
+    border: none;
+    background: #444;
+    color: white;
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  
+  .tab.active {
+    background: #007acc;
+  }
+  
+  .settings-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .main-content {
+    display: flex;
+    flex: 1;
+  }
+  
+  .tab-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+  }
+  
+  .right-sidebar {
+    width: 250px;
+    padding: 20px;
+    background: #f4f4f4;
+    border-left: 1px solid #ccc;
+    overflow-y: auto;
+  }
+  

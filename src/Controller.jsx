@@ -2,79 +2,103 @@
 import React, { useState, useContext } from 'react';
 import { DisplayContext } from './DisplayContext';
 import { getDB, saveDB } from './db';
-import { sampleTexts } from './sampleData';
-import { v4 as uuidv4 } from 'uuid';
+import { sampleTexts, sampleBible, sampleSongs } from './sampleData';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import './Controller.css';
 
-// Create a single socket instance.
-const socket = io('http://localhost:3001'); // Adjust as needed.
+const socket = io('http://localhost:3001');
 
 function Controller() {
   const { displays, setDisplays } = useContext(DisplayContext);
-  const [selectedText, setSelectedText] = useState(sampleTexts[0]);
+  const [activeTab, setActiveTab] = useState('Bible');
+  const [displayCount, setDisplayCount] = useState(1);
+  const [moduleAssignments, setModuleAssignments] = useState([
+    { id: 1, module: 'Bible' },
+  ]);
   const navigate = useNavigate();
 
-  const handleAddDisplay = () => {
-    const newId = uuidv4(); // Generate a unique ID.
-    const newDisplay = { id: newId, text: selectedText };
+  const handleDisplayCountChange = (e) => {
+    const count = parseInt(e.target.value, 10);
+    setDisplayCount(count);
+    const updatedAssignments = Array.from({ length: count }, (_, i) => ({
+      id: i + 1,
+      module: moduleAssignments[i]?.module || 'Bible'
+    }));
+    setModuleAssignments(updatedAssignments);
+  };
 
-    // Insert into local SQLite DB.
-    const db = getDB();
-    if (db) {
-      try {
-        db.run('INSERT INTO displays (id, text) VALUES (?, ?)', [newId, selectedText]);
-        saveDB();
-      } catch (error) {
-        console.error('Error inserting new display:', error);
-      }
-    }
+  const handleModuleChange = (id, module) => {
+    setModuleAssignments(prev =>
+      prev.map(d => (d.id === id ? { ...d, module } : d))
+    );
+  };
 
-    // Update React state.
-    setDisplays([...displays, newDisplay]);
-
-    // Emit the event to notify other clients.
-    socket.emit('newDisplay', newDisplay);
-
-    // Navigate to the new display page.
-    navigate(`/display/${newId}`);
+  const tabContent = {
+    Bible: (
+      <div>
+        <h2>Sample Bible Content</h2>
+        <pre>{sampleBible.join('\n')}</pre>
+      </div>
+    ),
+    Songbook: (
+      <div>
+        <h2>Sample Songs</h2>
+        <pre>{sampleSongs.join('\n')}</pre>
+      </div>
+    ),
+    Slideshow: (
+      <div>
+        <h2>Slideshow Placeholder</h2>
+        <p>Image and video background integration live here.</p>
+      </div>
+    )
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h1>Controller</h1>
-      <div>
-        <label htmlFor="text-select">Choose Display Content:</label>
-        <select
-          id="text-select"
-          value={selectedText}
-          onChange={e => setSelectedText(e.target.value)}
-          style={{ marginLeft: '10px' }}
-        >
-          {sampleTexts.map((text, index) => (
-            <option key={index} value={text}>
-              {`Option ${index + 1}`}
-            </option>
+    <div className="controller-container">
+      <div className="top-bar">
+        <div className="tabs">
+          {['Bible', 'Songbook', 'Slideshow'].map(tab => (
+            <button
+              key={tab}
+              className={`tab ${activeTab === tab ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab}
+            </button>
           ))}
-        </select>
-        <button onClick={handleAddDisplay} style={{ marginLeft: '10px' }}>
-          Create New Display
-        </button>
+        </div>
+        <div className="settings-button">
+          <label htmlFor="display-count">Displays:</label>
+          <input
+            type="number"
+            min="1"
+            max="10"
+            value={displayCount}
+            onChange={handleDisplayCountChange}
+          />
+        </div>
       </div>
 
-      <div style={{ marginTop: '20px' }}>
-        <h2>Existing Displays</h2>
-        {displays.length === 0 ? (
-          <p>No displays created yet.</p>
-        ) : (
-          <ul>
-            {displays.map(display => (
-              <li key={display.id}>
-                Display {display.id}: {display.text.slice(0, 40)}...
-              </li>
-            ))}
-          </ul>
-        )}
+      <div className="main-content">
+        <div className="tab-content">{tabContent[activeTab]}</div>
+        <div className="right-sidebar">
+          <h3>Display Assignments</h3>
+          {moduleAssignments.map(d => (
+            <div key={d.id}>
+              <label>Display {d.id}: </label>
+              <select
+                value={d.module}
+                onChange={(e) => handleModuleChange(d.id, e.target.value)}
+              >
+                <option value="Bible">Bible</option>
+                <option value="Songbook">Songbook</option>
+                <option value="Slideshow">Slideshow</option>
+              </select>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
