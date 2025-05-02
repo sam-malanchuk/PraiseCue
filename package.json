@@ -4,7 +4,12 @@
   "description": "**PraiseCue** is a lightweight local-network presentation tool for displaying Bible verses, worship songs, and announcements on screens around your church or gathering.",
   "main": "eslint.config.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "client": "cd client && npm start",
+    "server": "cd server && node index.js",
+    "build": "cd client && npm run build",
+    "serve-client": "serve -s client/build -l 80",
+    "dev": "concurrently -k -n \"SERVER,CLIENT\" -c \"cyan,green\" \"npm run server\" \"npm run serve-client\"",
+    "build-and-dev": "npm run build && npm run dev"
   },
   "repository": {
     "type": "git",
@@ -22,5 +27,8 @@
     "express": "^5.1.0",
     "socket.io": "^4.8.1",
     "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
   }
 }
