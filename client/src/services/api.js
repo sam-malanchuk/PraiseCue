@@ -17,3 +17,8 @@ export function deleteDisplay(display_number) {
 export function patchDisplay(display_number, data) {
   return axios.patch(`${SERVER}/api/displays/${display_number}`, data);
 }
+
+export function fetchDisplay(num) {
+  return axios.get(`${SERVER}/api/displays`)
+    .then(res => res.data.find(d => d.display_number === num));
+}

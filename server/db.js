@@ -19,7 +19,9 @@ db.serialize(() => {
       name TEXT,
       mode TEXT,
       group_id INTEGER,
-      template TEXT
+      template TEXT,
+      active INTEGER DEFAULT 0,
+      current_stanza INTEGER
     );
   `);
 });

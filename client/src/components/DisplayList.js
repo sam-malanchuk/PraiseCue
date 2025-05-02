@@ -21,6 +21,7 @@ export default function DisplayList({ displays, onDelete, onToggleMode }) {
               <option value="follow">Follow</option>
             </select>
           </p>
+          <p>{d.active ? '(active)' : ''}</p>
           <p style={{ fontStyle: 'italic' }}>
             {`${window.location.protocol}//${window.location.hostname}`}/display/{d.display_number}
           </p>
