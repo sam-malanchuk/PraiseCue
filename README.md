@@ -22,6 +22,10 @@ Once running, visit the following from any device on your network:
 
 ---
 
+
+## Note:
+Make sure you unblock ports 3001, and 80 on your local network if more than just the host machine will be accessing the routes
+
 ## 🚀 Getting Started
 
 ```bash
