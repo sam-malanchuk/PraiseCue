@@ -13,37 +13,58 @@ const songCatalog = {
     `Be Thou my Vision, O Lord of my heart;\nNaught be all else to me, save that Thou art.`,
     `Be Thou my Wisdom, and Thou my true Word;\nI ever with Thee and Thou with me, Lord.`,
     `Riches I heed not, nor man's empty praise;\nThou mine Inheritance, now and always.`
+  ],
+  3: [
+    `This is the Song's Line 1\nThis is the Song's Line 2\nThis is the Song's Line 3\nThis is the Song's Line 4`,
+    `This is the Song's Line 5\nThis is the Song's Line 6\nThis is the Song's Line 7\nThis is the Song's Line 8`,
+    `This is the Song's Line 9\nThis is the Song's Line 10\nThis is the Song's Line 11\nThis is the Song's Line 12`,
+    `This is the Song's Line 13\nThis is the Song's Line 14\nThis is the Song's Line 15\nThis is the Song's Line 16`
   ]
 };
 
 export default function DisplayScreen() {
   const { display_number } = useParams();
   const [display, setDisplay] = useState(null);
+  const [fontSize, setFontSize] = useState('2em');
 
+  // Load and subscribe
   useEffect(() => {
-    load();
+    fetchDisplay(+display_number).then(setDisplay).catch(console.error);
     socket.on('display-updated', d => {
-      if (d.display_number === +display_number) setDisplay(d);
+      if (d.display_number === +display_number) {
+        setDisplay(d);
+      }
     });
     return () => socket.off('display-updated');
   }, [display_number]);
 
-  function load() {
-    fetchDisplay(+display_number).then(setDisplay).catch(console.error);
-  }
+  // Compute font size whenever the assigned stanza changes
+  useEffect(() => {
+    if (!display || !display.current_song_id || !display.current_stanza) return;
 
-  if (!display) return <div>Loading...</div>;
+    const text =
+      songCatalog[display.current_song_id]?.[display.current_stanza - 1] || '';
+    const lineCount = text.split('\n').length || 1;
+    // const size = window.innerHeight / (lineCount * 1.5); // adjust to taste
+    // setFontSize(`${size}px`);
+  }, [display]);
 
-  const { current_song_id, current_stanza, name } = display;
-
-  // If no stanza assigned, show blank full-screen
-  if (!current_stanza || !current_song_id) {
+  // While loading
+  if (!display) {
     return <div style={{ background: 'white', height: '100vh' }} />;
   }
 
-  // Only show the one selected stanza
+  const { current_song_id, current_stanza, display_number: num, name: displayName } = display;
+
+  // If no stanza assigned, blank screen
+  if (!current_song_id || !current_stanza) {
+    return <div style={{ background: 'white', height: '100vh' }} />;
+  }
+
+  // Prepare lines
   const stanzaText =
     songCatalog[current_song_id]?.[current_stanza - 1] || '';
+  const lines = stanzaText.split('\n');
 
   return (
     <div
@@ -54,21 +75,31 @@ export default function DisplayScreen() {
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',
-        padding: 40,
-        textAlign: 'center',
-        fontSize: '2rem'
+        padding: 20,
+        textAlign: 'center'
       }}
     >
       <div>
-        <h2>{name}</h2>
-        <p
-          onClick={() =>
-            patchDisplay(display.display_number, { stanza: current_stanza })
-          }
-          style={{ cursor: 'pointer', fontWeight: 'normal' }}
-        >
-          {stanzaText}
-        </p>
+        <h2>{displayName}</h2>
+        {lines.map((line, i) => (
+          <div
+            key={i}
+            style={{
+              fontSize,
+              lineHeight: 1.2,
+              cursor: 'pointer',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              maxWidth: '90vw',
+              margin: '0.5em 0'
+            }}
+            // onClick={() =>
+            //   patchDisplay(num, { stanza: current_stanza })
+            // }
+          >
+            {line}
+          </div>
+        ))}
       </div>
     </div>
   );

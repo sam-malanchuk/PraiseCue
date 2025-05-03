@@ -119,22 +119,50 @@ exports.patchDisplay = (req, res) => {
   }
 
   // Non-activation updates (mode/song/stanza)
+  
   params.push(num);
   db.run(
     `UPDATE displays SET ${sets.join(', ')} WHERE display_number = ?`,
     params,
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
+
+      // if this display is in follow-mode, propagate to all follow displays
       db.get(
-        `SELECT * FROM displays WHERE display_number = ?`,
+        `SELECT mode, current_song_id, current_stanza FROM displays WHERE display_number = ?`,
         [num],
         (e, row) => {
-          if (e) return res.status(500).json({ error: e.message });
-          try { row.template = JSON.parse(row.template) } catch {}
-          getIO().emit('display-updated', row);
-          res.json(row);
+          if (e) return console.error(e);
+          if (row.mode === 'follow') {
+            // update every follow-mode display to the same songId & stanza
+            db.run(
+              `UPDATE displays 
+                 SET current_song_id = ?, current_stanza = ?
+               WHERE mode = 'follow'`,
+              [row.current_song_id, row.current_stanza || null],
+              err2 => {
+                if (err2) console.error(err2);
+                // emit updates for all follow displays
+                db.all(`SELECT * FROM displays WHERE mode='follow'`, (e2, all) => {
+                  all.forEach(d => {
+                    try { d.template = JSON.parse(d.template) } catch {}
+                    getIO().emit('display-updated', d);
+                  });
+                });
+              }
+            );
+          } else {
+            // just emit the single updated row
+            getIO().emit('display-updated', { ...row, display_number: num });
+          }
         }
       );
+
+      // final response: return the updated row
+      db.get(`SELECT * FROM displays WHERE display_number = ?`, [num], (e3, updated) => {
+        if (e3) return res.status(500).json({ error: e3.message });
+        res.json(updated);
+      });
     }
   );
 };

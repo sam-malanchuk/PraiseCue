@@ -32,6 +32,16 @@ export default function DisplayManager() {
         `Be Thou my Wisdom, and Thou my true Word;\nI ever with Thee and Thou with me, Lord.`,
         `Riches I heed not, nor man's empty praise;\nThou mine Inheritance, now and always.`
       ]
+    },
+    {
+      id: 3,
+      title: 'Song Sample',
+      stanzas: [
+        `This is the Song's Line 1\nThis is the Song's Line 2\nThis is the Song's Line 3\nThis is the Song's Line 4`,
+        `This is the Song's Line 5\nThis is the Song's Line 6\nThis is the Song's Line 7\nThis is the Song's Line 8`,
+        `This is the Song's Line 9\nThis is the Song's Line 10\nThis is the Song's Line 11\nThis is the Song's Line 12`,
+        `This is the Song's Line 13\nThis is the Song's Line 14\nThis is the Song's Line 15\nThis is the Song's Line 16`
+      ]
     }
   ];
 
