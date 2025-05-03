@@ -21,6 +21,7 @@ db.serialize(() => {
       group_id INTEGER,
       template TEXT,
       active INTEGER DEFAULT 0,
+      current_song_id INTEGER,
       current_stanza INTEGER
     );
   `);

@@ -45,8 +45,7 @@ exports.deleteDisplay = (req, res) => {
 
 exports.patchDisplay = (req, res) => {
   const num = parseInt(req.params.display_number, 10);
-  const { mode, active, stanza } = req.body;
-
+  const { mode, active, songId, stanza } = req.body;
   const sets = [];
   const params = [];
 
@@ -54,36 +53,88 @@ exports.patchDisplay = (req, res) => {
     sets.push('mode = ?');
     params.push(mode);
   }
-
+  if (songId !== undefined) {
+    // switch song and clear stanza
+    sets.push('current_song_id = ?', 'current_stanza = NULL');
+    params.push(songId);
+  }
   if (stanza !== undefined) {
-    sets.push('current_stanza = CASE WHEN current_stanza = ? THEN NULL ELSE ? END');
+    sets.push(
+      'current_stanza = CASE WHEN current_stanza = ? THEN NULL ELSE ? END'
+    );
     params.push(stanza, stanza);
   }
 
+  // Activation case:
   if (active) {
-    db.serialize(() => {
-      db.run(`UPDATE displays SET active = 0`);
-      db.run(`UPDATE displays SET active = 1 WHERE display_number = ?`, [num], err => {
+    // 1) find old active
+    db.get(
+      `SELECT display_number FROM displays WHERE active = 1`,
+      (err, prev) => {
         if (err) return res.status(500).json({ error: err.message });
-        db.get(`SELECT * FROM displays WHERE display_number = ?`, [num], (e, row) => {
-          if (e) return res.status(500).json({ error: e.message });
-          try { row.template = JSON.parse(row.template); } catch {}
-          getIO().emit('display-updated', row);
-          res.json(row);
-        });
-      });
-    });
+        const prevNum = prev?.display_number;
+
+        // 2) deactivate all
+        db.run(`UPDATE displays SET active = 0`);
+
+        // 3) activate the new one
+        db.run(
+          `UPDATE displays SET active = 1 WHERE display_number = ?`,
+          [num],
+          err2 => {
+            if (err2) return res.status(500).json({ error: err2.message });
+
+            // 4) fetch & emit new active
+            db.get(
+              `SELECT * FROM displays WHERE display_number = ?`,
+              [num],
+              (e, newRow) => {
+                if (e) return res.status(500).json({ error: e.message });
+                try { newRow.template = JSON.parse(newRow.template) } catch {}
+                getIO().emit('display-updated', newRow);
+
+                // 5) fetch & emit old active (if any)
+                if (prevNum) {
+                  db.get(
+                    `SELECT * FROM displays WHERE display_number = ?`,
+                    [prevNum],
+                    (e2, oldRow) => {
+                      if (!e2) {
+                        try { oldRow.template = JSON.parse(oldRow.template) } catch {}
+                        getIO().emit('display-updated', oldRow);
+                      }
+                    }
+                  );
+                }
+
+                // 6) respond with the new active
+                res.json(newRow);
+              }
+            );
+          }
+        );
+      }
+    );
     return;
   }
 
+  // Non-activation updates (mode/song/stanza)
   params.push(num);
-  db.run(`UPDATE displays SET ${sets.join(', ')} WHERE display_number = ?`, params, function (err) {
-    if (err) return res.status(500).json({ error: err.message });
-    db.get(`SELECT * FROM displays WHERE display_number = ?`, [num], (e, row) => {
-      if (e) return res.status(500).json({ error: e.message });
-      try { row.template = JSON.parse(row.template); } catch {}
-      getIO().emit('display-updated', row);
-      res.json(row);
-    });
-  });
+  db.run(
+    `UPDATE displays SET ${sets.join(', ')} WHERE display_number = ?`,
+    params,
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      db.get(
+        `SELECT * FROM displays WHERE display_number = ?`,
+        [num],
+        (e, row) => {
+          if (e) return res.status(500).json({ error: e.message });
+          try { row.template = JSON.parse(row.template) } catch {}
+          getIO().emit('display-updated', row);
+          res.json(row);
+        }
+      );
+    }
+  );
 };

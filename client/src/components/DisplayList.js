@@ -1,6 +1,11 @@
 import React from 'react';
 
-export default function DisplayList({ displays, onDelete, onToggleMode }) {
+export default function DisplayList({
+  displays,
+  onDelete,
+  onToggleMode,
+  onSetActive
+}) {
   return (
     <div>
       {displays.map(d => (
@@ -9,24 +14,38 @@ export default function DisplayList({ displays, onDelete, onToggleMode }) {
           style={{
             marginBottom: 15,
             padding: 10,
-            border: '1px solid #666',
-            borderRadius: 4,
+            border: d.active ? '2px solid blue' : '1px solid #666',
+            borderRadius: 4
           }}
         >
-          <h3>{d.name || `Display ${d.display_number}`}</h3>
-          <p>#: {d.display_number}</p>
+          <h3>
+            {d.name || `Display ${d.display_number}`}{' '}
+            {d.active && <span>(active)</span>}
+          </h3>
+          <p># {d.display_number}</p>
           <p>
-            Mode: <select value={d.mode} onChange={() => onToggleMode(d)}>
+            Mode:{' '}
+            <select
+              value={d.mode}
+              onChange={() => onToggleMode(d)}
+              style={{ marginLeft: 8 }}
+            >
               <option value="solo">Solo</option>
               <option value="follow">Follow</option>
             </select>
           </p>
-          <p>{d.active ? '(active)' : ''}</p>
-          <p style={{ fontStyle: 'italic' }}>
-            {`${window.location.protocol}//${window.location.hostname}`}/display/{d.display_number}
-          </p>
-          <button onClick={() => onDelete(d.display_number)}>Delete</button>
+
+          <button onClick={() => onSetActive(d.display_number)}>
+            {d.active ? 'Active' : 'Set Active'}
+          </button>
+          <button
+            onClick={() => onDelete(d.display_number)}
+            style={{ marginLeft: 8 }}
+          >
+            Delete
+          </button>
         </div>
       ))}
     </div>
-)};
+  );
+}
